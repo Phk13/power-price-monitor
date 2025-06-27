@@ -40,9 +40,9 @@ func (h *PowerHandler) GetOptimalHours(c echo.Context) error {
 
 	// Parse max_hours
 	maxHours, err := strconv.Atoi(maxHoursStr)
-	if err != nil || maxHours <= 0 || maxHours > 24 {
+	if err != nil || maxHours < 0 || maxHours > 24 {
 		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "max_hours must be a positive integer between 1 and 24",
+			"error": "max_hours must be an integer between 0 and 24 (0 disables scheduling)",
 		})
 	}
 

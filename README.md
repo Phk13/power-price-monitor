@@ -19,7 +19,7 @@ A Go application for monitoring Spanish electricity prices using the ESIOS REE A
 Find optimal hours for electricity consumption based on price and time constraints.
 
 **Query Parameters:**
-- `max_hours` (required): Maximum number of hours to return (1-24)
+- `max_hours` (required): Maximum number of hours to return (0-24). Use 0 to disable scheduling and return empty results.
 - `threshold` (required): Maximum price threshold in €/kWh
 
 **Example:**
@@ -32,6 +32,23 @@ curl "http://localhost:8080/optimal-hours?max_hours=8&threshold=0.15"
 {
   "optimal_hours": ["02:00", "03:00", "04:00", "05:00", "14:00", "15:00", "16:00", "17:00"],
   "total_hours_selected": 8,
+  "current_price": 0.123,
+  "threshold_used": 0.15,
+  "max_hours_used": 8,
+  "next_start": "2024-01-15T14:00:00+01:00"
+}
+```
+
+**Disable Scheduling (max_hours=0):**
+```bash
+curl "http://localhost:8080/optimal-hours?max_hours=0&threshold=0.15"
+```
+
+**Response:**
+```json
+{
+  "optimal_hours": [],
+  "total_hours_selected": 0,
   "current_price": 0.123,
   "threshold_used": 0.15,
   "max_hours_used": 8,

@@ -66,12 +66,16 @@ func (s *PowerPriceService) GetOptimalHours(ctx context.Context, maxHours int, t
 
 	// Filter by threshold and max hours
 	var optimalValues []model.Value
-	for _, value := range todayValues {
-		if len(optimalValues) >= maxHours {
-			break
-		}
-		if value.Value <= thresholdMWh {
-			optimalValues = append(optimalValues, value)
+
+	// If maxHours is 0, return empty slice (disables scheduling)
+	if maxHours > 0 {
+		for _, value := range todayValues {
+			if len(optimalValues) >= maxHours {
+				break
+			}
+			if value.Value <= thresholdMWh {
+				optimalValues = append(optimalValues, value)
+			}
 		}
 	}
 
@@ -100,7 +104,7 @@ func (s *PowerPriceService) GetOptimalHours(ctx context.Context, maxHours int, t
 	currentPrice := s.getCurrentPrice(todayValues, loc)
 
 	// Build response with local timezone
-	var optimalHours []string
+	optimalHours := make([]string, 0)
 	for _, value := range optimalValues {
 		valueTime, err := parseValueTime(value.DateTime)
 		if err != nil {

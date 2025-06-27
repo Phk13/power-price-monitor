@@ -5,3 +5,10 @@ GET http://localhost:8080/health HTTP/1.1
 GET http://localhost:8080/optimal-hours
     ?max_hours=4
     &threshold=0.1
+
+###
+
+# Test with max_hours=0 to disable scheduling
+GET http://localhost:8080/optimal-hours
+    ?max_hours=0
+    &threshold=0.1
