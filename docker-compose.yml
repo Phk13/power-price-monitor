@@ -1,8 +1,7 @@
-version: '3.8'
-
 services:
   power-price-monitor:
     build: .
+    container_name: power-price-monitor
     ports:
       - "8080:8080"
     environment:
