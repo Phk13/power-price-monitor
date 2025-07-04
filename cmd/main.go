@@ -31,7 +31,7 @@ func main() {
 	// Middleware
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Skipper: func(c echo.Context) bool {
-			return c.Path() == "/health"
+			return c.Request().URL.Path == "/health"
 		},
 	}))
 	e.Use(middleware.Recover())
