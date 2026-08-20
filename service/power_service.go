@@ -22,14 +22,27 @@ type PowerPriceService struct {
 	cachedData *model.CachedPowerData
 }
 
+// OptimalHoursOptions controls the optional optimal-hours selection behavior.
+type OptimalHoursOptions struct {
+	Consecutive bool
+	StartHour   int
+	EndHour     int
+}
+
 func NewPowerPriceService(cfg *config.Config) *PowerPriceService {
 	return &PowerPriceService{
 		config: cfg,
 	}
 }
 
-// GetOptimalHours returns the optimal hours based on max_hours and threshold
+// GetOptimalHours returns the optimal hours based on max_hours and threshold.
 func (s *PowerPriceService) GetOptimalHours(ctx context.Context, maxHours int, thresholdKWh float64) (*model.OptimalHoursResponse, error) {
+	return s.GetOptimalHoursWithOptions(ctx, maxHours, thresholdKWh, OptimalHoursOptions{EndHour: 24})
+}
+
+// GetOptimalHoursWithOptions returns optimal hours with optional time and
+// consecutive-window constraints.
+func (s *PowerPriceService) GetOptimalHoursWithOptions(ctx context.Context, maxHours int, thresholdKWh float64, options OptimalHoursOptions) (*model.OptimalHoursResponse, error) {
 	// Ensure we have current data
 	if err := s.ensureCurrentData(ctx); err != nil {
 		return nil, fmt.Errorf("failed to get current data: %w", err)
@@ -59,25 +72,10 @@ func (s *PowerPriceService) GetOptimalHours(ctx context.Context, maxHours int, t
 		}
 	}
 
-	// Sort by price to find optimal hours
-	sort.Slice(todayValues, func(i, j int) bool {
-		return todayValues[i].Value < todayValues[j].Value
-	})
+	// Keep the hour range half-open: [start_hour, end_hour).
+	filteredValues := filterValuesByHourRange(todayValues, options.StartHour, options.EndHour, loc)
 
-	// Filter by threshold and max hours
-	var optimalValues []model.Value
-
-	// If maxHours is 0, return empty slice (disables scheduling)
-	if maxHours > 0 {
-		for _, value := range todayValues {
-			if len(optimalValues) >= maxHours {
-				break
-			}
-			if value.Value <= thresholdMWh {
-				optimalValues = append(optimalValues, value)
-			}
-		}
-	}
+	optimalValues := selectOptimalValues(filteredValues, maxHours, thresholdMWh, options, loc)
 
 	// Sort optimal values by time for response
 	sort.Slice(optimalValues, func(i, j int) bool {
@@ -127,6 +125,87 @@ func (s *PowerPriceService) GetOptimalHours(ctx context.Context, maxHours int, t
 	}
 
 	return response, nil
+}
+
+func selectOptimalValues(values []model.Value, maxHours int, thresholdMWh float64, options OptimalHoursOptions, loc *time.Location) []model.Value {
+	if maxHours <= 0 {
+		return nil
+	}
+
+	if options.Consecutive {
+		return selectConsecutiveValues(values, maxHours, thresholdMWh, loc)
+	}
+
+	sort.Slice(values, func(i, j int) bool {
+		return values[i].Value < values[j].Value
+	})
+
+	optimalValues := make([]model.Value, 0, maxHours)
+	for _, value := range values {
+		if len(optimalValues) >= maxHours {
+			break
+		}
+		if value.Value <= thresholdMWh {
+			optimalValues = append(optimalValues, value)
+		}
+	}
+	return optimalValues
+}
+
+func filterValuesByHourRange(values []model.Value, startHour, endHour int, loc *time.Location) []model.Value {
+	filteredValues := make([]model.Value, 0, len(values))
+	for _, value := range values {
+		valueTime, err := parseValueTime(value.DateTime)
+		if err != nil {
+			continue
+		}
+		hour := valueTime.In(loc).Hour()
+		if hour >= startHour && hour < endHour {
+			filteredValues = append(filteredValues, value)
+		}
+	}
+	return filteredValues
+}
+
+func selectConsecutiveValues(values []model.Value, maxHours int, thresholdMWh float64, loc *time.Location) []model.Value {
+	if maxHours <= 0 {
+		return nil
+	}
+
+	sort.Slice(values, func(i, j int) bool {
+		timeI, _ := parseValueTime(values[i].DateTime)
+		timeJ, _ := parseValueTime(values[j].DateTime)
+		return timeI.Before(timeJ)
+	})
+
+	bestStart, bestLength := -1, 0
+	bestAverage := 0.0
+	for start := range values {
+		sum := 0.0
+		for end := start; end < len(values) && end-start < maxHours; end++ {
+			if end > start {
+				previousTime, _ := parseValueTime(values[end-1].DateTime)
+				currentTime, _ := parseValueTime(values[end].DateTime)
+				if currentTime.In(loc).Sub(previousTime.In(loc)) != time.Hour {
+					break
+				}
+			}
+
+			sum += values[end].Value
+			length := end - start + 1
+			average := sum / float64(length)
+			if average <= thresholdMWh && (length > bestLength || (length == bestLength && (bestStart == -1 || average < bestAverage))) {
+				bestStart = start
+				bestLength = length
+				bestAverage = average
+			}
+		}
+	}
+
+	if bestStart == -1 {
+		return nil
+	}
+	return values[bestStart : bestStart+bestLength]
 }
 
 // ensureCurrentData fetches new data if cache is stale

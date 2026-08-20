@@ -21,10 +21,18 @@ Find optimal hours for electricity consumption based on price and time constrain
 **Query Parameters:**
 - `max_hours` (required): Maximum number of hours to return (0-24). Use 0 to disable scheduling and return empty results.
 - `threshold` (required): Maximum price threshold in €/kWh
+- `consecutive` (optional): Return the longest qualifying consecutive window up to `max_hours`; its average price is compared with `threshold`. Defaults to `false`.
+- `start_hour` (optional): Minimum hour, inclusive (0-24). Defaults to `0`.
+- `end_hour` (optional): Maximum hour, exclusive (0-24). Defaults to `24`.
 
 **Example:**
 ```bash
 curl "http://localhost:8080/optimal-hours?max_hours=8&threshold=0.15"
+```
+
+To select a consecutive window within a time range:
+```bash
+curl "http://localhost:8080/optimal-hours?max_hours=4&threshold=0.15&consecutive=true&start_hour=14&end_hour=21"
 ```
 
 **Response:**
@@ -51,7 +59,7 @@ curl "http://localhost:8080/optimal-hours?max_hours=0&threshold=0.15"
   "total_hours_selected": 0,
   "current_price": 0.123,
   "threshold_used": 0.15,
-  "max_hours_used": 8,
+  "max_hours_used": 0,
   "next_start": "2024-01-15T14:00:00+01:00"
 }
 ```
