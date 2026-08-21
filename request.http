@@ -1,9 +1,14 @@
-# @host = localhost:8080
-@host = 172.16.0.13:8741
+@host = localhost:8080
 
 GET http://{{host}}/health HTTP/1.1
 
 ###
+
+# Test consecutive windows with ranges
+GET http://{{host}}/optimal-hours
+    ?max_hours=3
+    &threshold=1
+    &consecutive=true
 
 GET http://{{host}}/optimal-hours
     ?max_hours=4
